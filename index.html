@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Stok Bildirim Sistemi</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="logo" onclick="showHome()">STOCKWEAR</div>
+
+    <nav class="main-menu">
+      <button onclick="openGenderMenu('woman')">KADIN</button>
+      <button onclick="openGenderMenu('man')">ERKEK</button>
+    </nav>
+
+    <div class="search-box">
+      <span>⌕</span>
+      <input
+        id="searchInput"
+        type="text"
+        placeholder="BURADA ARA"
+        oninput="searchProducts()"
+      >
+    </div>
+
+    <nav class="right-menu">
+      <button onclick="showNotifications()">BİLDİRİMLER</button>
+      <button id="authButton" onclick="showRegisterPage()">OTURUM AÇ</button>
+      <button id="logoutButton" onclick="logoutUser()" style="display:none;">ÇIKIŞ</button>
+      <button onclick="showCartPage()">SEPET</button>
+      <a id="adminLink" href="/admin.html" style="display:none;">ADMIN</a>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+
+  <aside id="filterDrawer" class="filter-drawer">
+    <button class="filter-hide" onclick="closeFilterDrawer()">GİZLE</button>
+
+    <div class="filter-section">
+      <h3>SIRALA</h3>
+      <button onclick="sortProducts('asc')">ARTAN FİYAT</button>
+      <button onclick="sortProducts('desc')">AZALAN FİYAT</button>
+    </div>
+
+    <div class="filter-section">
+      <h3>RENK <span>⌄</span></h3>
+    </div>
+
+    <div class="filter-section">
+      <h3>BEDEN <span>⌄</span></h3>
+    </div>
+
+    <div class="filter-section">
+      <h3>FİYAT</h3>
+      <div class="price-line"></div>
+      <div class="price-values">
+        <span>80 TL</span>
+        <span>2.490 TL</span>
+      </div>
+    </div>
+
+    <div class="filter-check">
+      <strong>İNDİRİMLİ</strong>
+      <span>□</span>
+    </div>
+
+    <div class="filter-check">
+      <div>
+        <strong>YENİ ÜRÜNLER</strong>
+        <p>En yeni ürünleri gör</p>
+      </div>
+      <span>□</span>
+    </div>
+
+    <button class="clear-filter" onclick="renderShopPage()">TEMİZLE</button>
+  </aside>
+
+  <aside id="cartDrawer" class="cart-drawer">
+    <button class="drawer-close" onclick="closeCartDrawer()">×</button>
+    <div id="cartDrawerContent"></div>
+  </aside>
+
+  <div id="overlay" class="overlay" onclick="closeCartDrawer()"></div>
+
+  <script>
+    let currentUser = JSON.parse(localStorage.getItem("currentUser"));
+    let allProducts = [];
+    let selectedSizes = {};
+    let shownNotificationIds = [];
+    let currentGender = "woman";
+    let currentCategory = null;
+    let currentCategoryTitle = "KADIN";
+    let sidebarVisible = false;
+    let visibleProducts = [];
+
+    const womanCategories = [
+      { label: "PLAJ GİYİMİ", keywords: ["plaj"] },
+      { label: "ELBİSE VE TULUM", keywords: ["elbise", "tulum"] },
+      { label: "TOP VE BODY", keywords: ["top", "body"] },
+      { label: "TİŞÖRT", keywords: ["tişört", "tisort", "t-shirt"] },
+      { label: "GÖMLEK - BLUZ", keywords: ["gömlek", "gomlek", "bluz"] },
+      { label: "PANTOLON", keywords: ["pantolon"] },
+      { label: "ŞALVAR", keywords: ["şalvar", "salvar"] },
+      { label: "JEAN", keywords: ["jean"] },
+      { label: "ŞORT - BERMUDA", keywords: ["şort", "sort", "bermuda"] },
+      { label: "ETEK", keywords: ["etek"] },
+      { label: "CEKET VE TRENÇKOT", keywords: ["ceket", "trençkot", "trenckot"] },
+      { label: "SWEATSHIRT", keywords: ["sweatshirt"] },
+      { label: "KAZAK - HIRKA", keywords: ["kazak", "hırka", "hirka"] },
+      { label: "TOTAL LOOK", keywords: ["total look"] },
+      { label: "İÇ GİYİM", keywords: ["iç giyim", "ic giyim"] },
+      { label: "BSK TEEN", keywords: ["teen"] },
+      { label: "AYAKKABI", keywords: ["ayakkabı", "ayakkabi"] },
+      { label: "ÇANTA VE CÜZDAN", keywords: ["çanta", "canta", "cüzdan", "cuzdan"] },
+      { label: "ÇANTA - AKSESUAR", keywords: ["çanta", "canta", "aksesuar"] }
+    ];
+
+    const manCategories = [
+      { label: "HEPSİ", keywords: ["all"] },
+      { label: "T-SHIRT VE POLO YAKA T-SHIRT", keywords: ["tişört", "tisort", "t-shirt", "polo"] },
+      { label: "ŞORT", keywords: ["şort", "sort"] },
+      { label: "JEAN", keywords: ["jean"] },
+      { label: "PANTOLON", keywords: ["pantolon"] },
+      { label: "GÖMLEK", keywords: ["gömlek", "gomlek"] },
+      { label: "CEKET", keywords: ["ceket"] },
+      { label: "SWEATSHIRT", keywords: ["sweatshirt"] },
+      { label: "TRİKO", keywords: ["triko"] },
+      { label: "TWIN SETS", keywords: ["twin"] },
+      { label: "PLAJ GİYİMİ", keywords: ["plaj"] },
+      { label: "AYAKKABI", keywords: ["ayakkabı", "ayakkabi"] },
+      { label: "AKSESUAR", keywords: ["aksesuar"] }
+    ];
+
+    function normalizeText(text) {
+      return text
+        .toLowerCase()
+        .replaceAll("ı", "i")
+        .replaceAll("ğ", "g")
+        .replaceAll("ü", "u")
+        .replaceAll("ş", "s")
+        .replaceAll("ö", "o")
+        .replaceAll("ç", "c");
+    }
+
+    function getCategoryList(gender) {
+      return gender === "woman" ? womanCategories : manCategories;
+    }
+
+    function categoryMatches(product, categoryData) {
+      if (!categoryData) return true;
+      if (categoryData.keywords.includes("all")) return true;
+
+      const productCategory = normalizeText(product.category);
+      const productName = normalizeText(product.name);
+
+      return categoryData.keywords.some(keyword => {
+        const normalizedKeyword = normalizeText(keyword);
+        return productCategory.includes(normalizedKeyword) || productName.includes(normalizedKeyword);
+      });
+    }
+
+    function getTotalStock(product) {
+      return Object.values(product.sizes).reduce((total, stock) => total + stock, 0);
+    }
+
+    async function loadProducts() {
+      const response = await fetch("/products");
+      allProducts = await response.json();
+    }
+
+    function updateAdminVisibility() {
+      const adminLink = document.getElementById("adminLink");
+
+      const isComputerLocal =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+
+      adminLink.style.display = isComputerLocal ? "inline-block" : "none";
+    }
+
+    function updateAuthButtons() {
+      const authButton = document.getElementById("authButton");
+      const logoutButton = document.getElementById("logoutButton");
+
+      if (currentUser) {
+        authButton.innerText = currentUser.name.toUpperCase();
+        logoutButton.style.display = "inline-block";
+      } else {
+        authButton.innerText = "OTURUM AÇ";
+        logoutButton.style.display = "none";
+      }
+    }
+
+    function requestBrowserNotificationPermission() {
+      if ("Notification" in window) {
+        Notification.requestPermission();
+      }
+    }
+
+    function showBrowserNotification(message) {
+      if (!("Notification" in window)) return;
+
+      if (Notification.permission === "granted") {
+        new Notification("Stok Bildirimi", {
+          body: message
+        });
+      }
+    }
+
+    async function checkNewNotifications() {
+      if (!currentUser) return;
+
+      const response = await fetch(`/subscriptions/notifications/${currentUser.id}`);
+      const notifications = await response.json();
+
+      notifications.forEach(notification => {
+        if (!shownNotificationIds.includes(notification.id)) {
+          shownNotificationIds.push(notification.id);
+          showBrowserNotification(notification.message);
+        }
+      });
+    }
+
+    function showHome() {
+      updateAuthButtons();
+      updateAdminVisibility();
+      closeFilterDrawer();
+
+      const app = document.getElementById("app");
+
+      app.innerHTML = `
+        <section class="hero">
+          <h1>STOCKWEAR</h1>
+          <p>Stokta olmayan bedenleri takip et, tekrar stoğa girince bildirim al.</p>
+
+          <div class="hero-grid">
+            <div class="hero-card woman" onclick="openGenderMenu('woman')">
+              <h2>KADIN</h2>
+            </div>
+
+            <div class="hero-card man" onclick="openGenderMenu('man')">
+              <h2>ERKEK</h2>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function openGenderMenu(gender) {
+      currentGender = gender;
+      currentCategory = null;
+      currentCategoryTitle = gender === "woman" ? "KADIN" : "ERKEK";
+      sidebarVisible = true;
+
+      const searchInput = document.getElementById("searchInput");
+      if (searchInput) searchInput.value = "";
+
+      renderShopPage();
+    }
+
+    function selectCategory(categoryIndex) {
+      const categories = getCategoryList(currentGender);
+      currentCategory = categories[categoryIndex];
+      currentCategoryTitle = currentCategory.label;
+      sidebarVisible = false;
+
+      const searchInput = document.getElementById("searchInput");
+      if (searchInput) searchInput.value = "";
+
+      renderShopPage();
+    }
+
+    function getCurrentProducts() {
+      let products = allProducts.filter(product => product.gender === currentGender);
+
+      if (currentCategory) {
+        products = products.filter(product => categoryMatches(product, currentCategory));
+      }
+
+      return products;
+    }
+
+    function renderShopPage() {
+      updateAuthButtons();
+      updateAdminVisibility();
+
+      const app = document.getElementById("app");
+      const categories = getCategoryList(currentGender);
+      visibleProducts = getCurrentProducts();
+
+      app.innerHTML = `
+        <section class="shop-layout ${sidebarVisible ? "" : "sidebar-closed"}">
+          ${
+            sidebarVisible
+              ? `
+                <aside class="sidebar">
+                  <h2>${currentGender === "woman" ? "KADIN" : "ERKEK"}</h2>
+                  ${categories.map((category, index) => `
+                    <button onclick="selectCategory(${index})">${category.label}</button>
+                  `).join("")}
+                </aside>
+              `
+              : ""
+          }
+
+          <section class="products-area">
+            <div class="product-top-bar">
+              <button class="filter-button" onclick="openFilterDrawer()">FİLTRE</button>
+              <h1>${currentCategoryTitle}</h1>
+              <div></div>
+            </div>
+
+            ${
+              visibleProducts.length === 0
+                ? `<p>Bu kategoride ürün bulunamadı.</p>`
+                : `<div id="productGrid" class="product-grid">${visibleProducts.map(product => createProductCard(product)).join("")}</div>`
+            }
+          </section>
+        </section>
+      `;
+    }
+
+    function searchProducts() {
+      const searchInput = document.getElementById("searchInput");
+      const searchValue = normalizeText(searchInput.value.trim());
+
+      let products = allProducts.filter(product => product.gender === currentGender);
+
+      if (searchValue !== "") {
+        products = products.filter(product =>
+          normalizeText(product.name).includes(searchValue) ||
+          normalizeText(product.category).includes(searchValue)
+        );
+      }
+
+      visibleProducts = products;
+
+      const app = document.getElementById("app");
+
+      app.innerHTML = `
+        <section class="shop-layout sidebar-closed">
+          <section class="products-area">
+            <div class="product-top-bar">
+              <button class="filter-button" onclick="openFilterDrawer()">FİLTRE</button>
+              <h1>ARAMA SONUÇLARI</h1>
+              <div></div>
+            </div>
+
+            ${
+              products.length === 0
+                ? `<p>Ürün bulunamadı.</p>`
+                : `<div id="productGrid" class="product-grid">${products.map(product => createProductCard(product)).join("")}</div>`
+            }
+          </section>
+        </section>
+      `;
+    }
+
+    function sortProducts(type) {
+      if (type === "asc") {
+        visibleProducts.sort((a, b) => a.price - b.price);
+      }
+
+      if (type === "desc") {
+        visibleProducts.sort((a, b) => b.price - a.price);
+      }
+
+      closeFilterDrawer();
+
+      const grid = document.getElementById("productGrid");
+      if (grid) {
+        grid.innerHTML = visibleProducts.map(product => createProductCard(product)).join("");
+      }
+    }
+
+    function createProductCard(product) {
+      const totalStock = getTotalStock(product);
+
+      return `
+        <div class="product-card">
+          <div class="product-image"
+               onclick="showProductDetail(${product.id})"
+               style="background-image: url('${product.image}')">
+            ${totalStock === 0 ? `<span class="sold-out">STOK YOK</span>` : ""}
+          </div>
+
+          <div class="product-info">
+            <h3 onclick="showProductDetail(${product.id})">${product.name}</h3>
+            <p>${product.price} TL</p>
+            <p class="${totalStock === 0 ? 'stock-none' : 'stock-available'}">
+              Toplam Stok: ${totalStock}
+            </p>
+
+            <div class="product-actions">
+              <button onclick="event.stopPropagation(); addFavorite(${product.id})">Favorilere Ekle</button>
+              <button onclick="event.stopPropagation(); openQuickSize(${product.id})">Sepete Ekle</button>
+            </div>
+
+            <div id="quickSize-${product.id}" class="quick-size hidden">
+              <p>Beden seç:</p>
+              ${Object.entries(product.sizes).map(([size, stock]) => `
+                <button onclick="${stock > 0 ? `addCart(${product.id}, '${size}')` : `subscribeStock(${product.id}, '${size}')`}">
+                  ${size} ${stock > 0 ? `(${stock})` : "(Haber Ver)"}
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function openFilterDrawer() {
+      document.body.classList.add("filter-open");
+      document.getElementById("filterDrawer").classList.add("open");
+    }
+
+    function closeFilterDrawer() {
+      document.body.classList.remove("filter-open");
+      document.getElementById("filterDrawer").classList.remove("open");
+    }
+
+    function openQuickSize(productId) {
+      if (!checkLogin()) return;
+
+      const sizeBox = document.getElementById(`quickSize-${productId}`);
+      sizeBox.classList.toggle("hidden");
+    }
+
+    function showProductDetail(productId) {
+      closeFilterDrawer();
+
+      const product = allProducts.find(product => product.id === productId);
+      const app = document.getElementById("app");
+
+      app.innerHTML = `
+        <section class="detail-page">
+          <div class="detail-image" style="background-image: url('${product.image}')"></div>
+
+          <div class="detail-panel">
+            <button class="back-button" onclick="renderShopPage()">← Geri</button>
+            <button class="favorite-icon" onclick="addFavorite(${product.id})">♡</button>
+
+            <h1>${product.name}</h1>
+            <p class="detail-price">${product.price} TL</p>
+
+            <h3>Bedenler</h3>
+
+            <div class="sizes">
+              ${Object.entries(product.sizes).map(([size, stock]) => `
+                <button class="${stock > 0 ? 'size-in' : 'size-out'}" onclick="selectSize(${product.id}, '${size}')">
+                  ${size}
+                  <small>${stock > 0 ? `${stock} adet` : "Stok yok"}</small>
+                </button>
+              `).join("")}
+            </div>
+
+            <p id="selectedSizeText">Beden seçilmedi</p>
+
+            <div id="detailActionArea">
+              <button class="main-action" onclick="selectSizeWarning()">ÖNCE BEDEN SEÇ</button>
+            </div>
+
+            <button class="secondary-action" onclick="addFavorite(${product.id})">FAVORİLERE EKLE</button>
+          </div>
+        </section>
+      `;
+    }
+
+    function selectSize(productId, size) {
+      const product = allProducts.find(product => product.id === productId);
+      selectedSizes[productId] = size;
+
+      document.getElementById("selectedSizeText").innerText = `Seçilen beden: ${size}`;
+
+      const stock = product.sizes[size];
+      const detailActionArea = document.getElementById("detailActionArea");
+
+      if (stock > 0) {
+        detailActionArea.innerHTML = `
+          <button class="main-action" onclick="addCartFromDetail(${productId})">SEPETE EKLE</button>
+        `;
+      } else {
+        detailActionArea.innerHTML = `
+          <button class="main-action" onclick="subscribeStock(${productId}, '${size}')">STOK GELİNCE HABER VER</button>
+        `;
+      }
+    }
+
+    function selectSizeWarning() {
+      alert("Lütfen önce beden seçiniz.");
+    }
+
+    function showRegisterPage() {
+      closeFilterDrawer();
+
+      const app = document.getElementById("app");
+
+      if (currentUser) {
+        app.innerHTML = `
+          <section class="login-page">
+            <div class="login-card">
+              <h1>HESABIM</h1>
+              <p>Şu anda giriş yapan kullanıcı:</p>
+
+              <h2>${currentUser.name}</h2>
+              <p>${currentUser.email}</p>
+
+              <button onclick="showHome()">Alışverişe Devam Et</button>
+              <button onclick="logoutUser()" class="secondary-auth-button">Çıkış Yap</button>
+            </div>
+          </section>
+        `;
+        return;
+      }
+
+      app.innerHTML = `
+        <section class="login-page">
+          <div class="login-card">
+            <h1>OTURUM AÇ</h1>
+            <p>Stok bildirimleri ve e-mail uyarıları için kayıt ol.</p>
+
+            <label>Ad Soyad</label>
+            <input id="registerName" type="text" placeholder="Ad Soyad">
+
+            <label>E-mail</label>
+            <input id="registerEmail" type="email" placeholder="ornek@mail.com">
+
+            <button onclick="registerUser()">Kayıt Ol</button>
+          </div>
+        </section>
+      `;
+    }
+
+    async function registerUser() {
+      const name = document.getElementById("registerName").value;
+      const email = document.getElementById("registerEmail").value;
+
+      if (!name || !email) {
+        alert("Lütfen ad ve e-mail gir.");
+        return;
+      }
+
+      const response = await fetch("/users/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: name,
+          email: email
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.user) {
+        alert(data.message || "Kayıt sırasında hata oluştu.");
+        return;
+      }
+
+      currentUser = data.user;
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
+
+      alert(data.message);
+
+      updateAuthButtons();
+      requestBrowserNotificationPermission();
+      showHome();
+    }
+
+    function logoutUser() {
+      localStorage.removeItem("currentUser");
+      currentUser = null;
+      shownNotificationIds = [];
+      updateAuthButtons();
+      showHome();
+    }
+
+    function checkLogin() {
+      if (!currentUser) {
+        alert("Bu işlemi yapmak için önce oturum açmalısın.");
+        showRegisterPage();
+        return false;
+      }
+
+      return true;
+    }
+
+    async function addCartFromDetail(productId) {
+      if (!checkLogin()) return;
+
+      const size = selectedSizes[productId];
+
+      if (!size) {
+        alert("Lütfen beden seçiniz.");
+        return;
+      }
+
+      await addCart(productId, size);
+    }
+
+    async function subscribeStock(productId, size) {
+      if (!checkLogin()) return;
+
+      const response = await fetch("/subscriptions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          productId,
+          size
+        })
+      });
+
+      const data = await response.json();
+      alert(data.message);
+    }
+
+    async function addFavorite(productId) {
+      if (!checkLogin()) return;
+
+      const response = await fetch("/subscriptions/favorites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          productId
+        })
+      });
+
+      const data = await response.json();
+      alert(data.message);
+    }
+
+    async function addCart(productId, size) {
+      if (!checkLogin()) return;
+
+      const response = await fetch("/subscriptions/cart", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          productId,
+          size
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        alert(data.message);
+        return;
+      }
+
+      showCartDrawer(data.product, data.size);
+    }
+
+    function showCartDrawer(product, size) {
+      closeFilterDrawer();
+
+      const drawer = document.getElementById("cartDrawer");
+      const overlay = document.getElementById("overlay");
+      const content = document.getElementById("cartDrawerContent");
+
+      content.innerHTML = `
+        <h2>ÜRÜN EKLENDİ</h2>
+
+        <div class="drawer-product">
+          <img src="${product.image}" alt="${product.name}">
+          <div>
+            <h3>${product.name}</h3>
+            <p>${product.price} TL</p>
+            <p>Beden: ${size}</p>
+          </div>
+        </div>
+
+        <button class="checkout-button">SİPARİŞİ İŞLEME AL</button>
+        <button class="outline-button" onclick="showCartPage()">SEPETİ GÖR</button>
+      `;
+
+      drawer.classList.add("open");
+      overlay.classList.add("show");
+    }
+
+    function closeCartDrawer() {
+      document.getElementById("cartDrawer").classList.remove("open");
+      document.getElementById("overlay").classList.remove("show");
+    }
+
+    async function showCartPage() {
+      if (!checkLogin()) return;
+
+      closeFilterDrawer();
+      closeCartDrawer();
+
+      const response = await fetch(`/subscriptions/cart/${currentUser.id}`);
+      const cartItems = await response.json();
+
+      renderCartPage(cartItems);
+    }
+
+    async function showFavoritesPage() {
+      if (!checkLogin()) return;
+
+      closeFilterDrawer();
+
+      const response = await fetch(`/subscriptions/favorites/${currentUser.id}`);
+      const favoriteItems = await response.json();
+
+      renderFavoritesPage(favoriteItems);
+    }
+
+    function renderCartPage(cartItems) {
+      const total = cartItems.reduce((sum, item) => sum + item.product.price, 0);
+      const app = document.getElementById("app");
+
+      app.innerHTML = `
+        <section class="cart-page-bershka">
+          <div class="cart-left">
+            <div class="cart-tabs">
+              <button class="active" onclick="showCartPage()">SEPET (${cartItems.length})</button>
+              <button onclick="showFavoritesPage()">FAVORİLER</button>
+            </div>
+
+            ${
+              cartItems.length === 0
+                ? `
+                  <div class="empty-cart-box">
+                    <h2>SEPET BOŞ</h2>
+                    <p>Sepetinde henüz ürün yok.</p>
+                    <button onclick="openGenderMenu('woman')">KEŞFET</button>
+                  </div>
+                `
+                : cartItems.map(item => `
+                  <div class="cart-product-row">
+                    <div class="cart-product-image-wrap">
+                      <img src="${item.product.image}" alt="${item.product.name}">
+                    </div>
+
+                    <div class="cart-product-info">
+                      <h3>${item.product.name}</h3>
+                      <div class="cart-price-row">
+                        <span class="cart-price">${item.product.price} TL</span>
+                      </div>
+                      <p class="cart-size">${item.size} BEDEN</p>
+
+                      <div class="cart-quantity">
+                        <button>-</button>
+                        <span>1</span>
+                        <button>+</button>
+                      </div>
+                    </div>
+                  </div>
+                `).join("")
+            }
+
+            <h2 class="suggest-title">BUNLARI BEĞENEBİLİRSİN</h2>
+            <div class="suggestion-row">
+              ${allProducts.slice(0, 4).map(product => `
+                <div class="suggestion-item" onclick="showProductDetail(${product.id})">
+                  <img src="${product.image}" alt="${product.name}">
+                  <p>${product.name}</p>
+                  <span>${product.price} TL</span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <aside class="cart-summary-bershka">
+            <div class="shipping-box">
+              Ücretsiz standart gönderi hakkı elde etmek için daha fazla ürün ekleyebilirsin.
+            </div>
+
+            <div class="cart-total-bershka">
+              <span>TOPLAM <small>(KDV dahil)</small></span>
+              <strong>${total} TL</strong>
+            </div>
+
+            <button class="order-button">SİPARİŞİ İŞLEME AL</button>
+
+            <div class="campaign-box">
+              <span>KAMPANYA KODU</span>
+              <span>□</span>
+            </div>
+          </aside>
+        </section>
+      `;
+    }
+
+    function renderFavoritesPage(favoriteItems) {
+      const app = document.getElementById("app");
+
+      app.innerHTML = `
+        <section class="cart-page-bershka">
+          <div class="cart-left">
+            <div class="cart-tabs">
+              <button onclick="showCartPage()">SEPET</button>
+              <button class="active" onclick="showFavoritesPage()">FAVORİLER (${favoriteItems.length})</button>
+            </div>
+
+            ${
+              favoriteItems.length === 0
+                ? `
+                  <div class="empty-cart-box">
+                    <h2>FAVORİLER BOŞ</h2>
+                    <p>Favorilerine henüz ürün eklemedin.</p>
+                    <button onclick="openGenderMenu('woman')">KEŞFET</button>
+                  </div>
+                `
+                : `
+                  <div class="product-grid">
+                    ${favoriteItems.map(item => createProductCard(item.product)).join("")}
+                  </div>
+                `
+            }
+          </div>
+
+          <aside class="cart-summary-bershka">
+            <div class="shipping-box">
+              Favorilerindeki ürünler tekrar stoğa girdiğinde sana bildirim gönderilir.
+            </div>
+
+            <button class="order-button" onclick="openGenderMenu('woman')">ALIŞVERİŞE DEVAM ET</button>
+          </aside>
+        </section>
+      `;
+    }
+
+    async function showNotifications() {
+      if (!checkLogin()) return;
+
+      closeFilterDrawer();
+      await loadProducts();
+
+      const response = await fetch(`/subscriptions/notifications/${currentUser.id}`);
+      const notifications = await response.json();
+
+      const app = document.getElementById("app");
+
+      if (notifications.length === 0) {
+        app.innerHTML = `
+          <section class="page">
+            <h1>Bildirimlerim</h1>
+            <p>Henüz bildirimin yok.</p>
+          </section>
+        `;
+        return;
+      }
+
+      const notificationProducts = notifications.map(notification => {
+        const product = allProducts.find(product => product.id === notification.productId);
+
+        return {
+          notification,
+          product
+        };
+      }).filter(item => item.product);
+
+      app.innerHTML = `
+        <section class="page">
+          <h1>Bildirimlerim</h1>
+          <p>Stoğa gelen bedenleri buradan sepete ekleyebilirsin.</p>
+
+          <div class="product-grid notification-products">
+            ${notificationProducts.map(item => `
+              <div class="product-card">
+                <div class="product-image"
+                     onclick="showProductDetail(${item.product.id})"
+                     style="background-image: url('${item.product.image}')">
+                </div>
+
+                <div class="product-info">
+                  <h3>${item.product.name}</h3>
+                  <p>${item.product.price} TL</p>
+                  <p class="stock-available">${item.notification.size} bedeni tekrar stokta</p>
+                  <p class="email-status">${item.notification.emailStatus || ""}</p>
+
+                  <div class="product-actions">
+                    <button onclick="addCart(${item.product.id}, '${item.notification.size}')">Sepete Ekle</button>
+                    <button onclick="addFavorite(${item.product.id})">Favorilere Ekle</button>
+                  </div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    async function startApp() {
+      await loadProducts();
+      updateAuthButtons();
+      updateAdminVisibility();
+      showHome();
+
+      requestBrowserNotificationPermission();
+      setInterval(checkNewNotifications, 3000);
+    }
+
+    startApp();
+  </script>
+</body>
+</html>

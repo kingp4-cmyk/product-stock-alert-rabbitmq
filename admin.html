@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Paneli - Beden Stoğu Güncelleme</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="logo" onclick="goHome()">STOCKWEAR</div>
+
+    <nav class="right-menu">
+      <a href="/">MAĞAZA</a>
+      <a href="/admin.html">ADMIN</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1>Admin Paneli</h1>
+
+    <section class="admin-layout">
+      <div class="admin-gender-panel">
+        <h2>KADIN</h2>
+        <div id="womanCategoryList" class="admin-category-list"></div>
+      </div>
+
+      <div class="admin-gender-panel">
+        <h2>ERKEK</h2>
+        <div id="manCategoryList" class="admin-category-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let adminProducts = [];
+    let selectedAdminGender = null;
+    let selectedAdminCategoryIndex = null;
+
+    const womanCategories = [
+      { label: "PLAJ GİYİMİ", keywords: ["plaj"] },
+      { label: "ELBİSE VE TULUM", keywords: ["elbise", "tulum"] },
+      { label: "TOP VE BODY", keywords: ["top", "body"] },
+      { label: "TİŞÖRT", keywords: ["tişört", "tisort", "t-shirt"] },
+      { label: "GÖMLEK - BLUZ", keywords: ["gömlek", "gomlek", "bluz"] },
+      { label: "PANTOLON", keywords: ["pantolon"] },
+      { label: "ŞALVAR", keywords: ["şalvar", "salvar"] },
+      { label: "JEAN", keywords: ["jean"] },
+      { label: "ŞORT - BERMUDA", keywords: ["şort", "sort", "bermuda"] },
+      { label: "ETEK", keywords: ["etek"] },
+      { label: "CEKET VE TRENÇKOT", keywords: ["ceket", "trençkot", "trenckot"] },
+      { label: "SWEATSHIRT", keywords: ["sweatshirt"] },
+      { label: "KAZAK - HIRKA", keywords: ["kazak", "hırka", "hirka"] },
+      { label: "TOTAL LOOK", keywords: ["total look"] },
+      { label: "İÇ GİYİM", keywords: ["iç giyim", "ic giyim"] },
+      { label: "BSK TEEN", keywords: ["teen"] },
+      { label: "AYAKKABI", keywords: ["ayakkabı", "ayakkabi"] },
+      { label: "ÇANTA VE CÜZDAN", keywords: ["çanta", "canta", "cüzdan", "cuzdan"] },
+      { label: "ÇANTA - AKSESUAR", keywords: ["çanta", "canta", "aksesuar"] }
+    ];
+
+    const manCategories = [
+      { label: "HEPSİ", keywords: ["all"] },
+      { label: "T-SHIRT VE POLO YAKA T-SHIRT", keywords: ["tişört", "tisort", "t-shirt", "polo"] },
+      { label: "ŞORT", keywords: ["şort", "sort"] },
+      { label: "JEAN", keywords: ["jean"] },
+      { label: "PANTOLON", keywords: ["pantolon"] },
+      { label: "GÖMLEK", keywords: ["gömlek", "gomlek"] },
+      { label: "CEKET", keywords: ["ceket"] },
+      { label: "SWEATSHIRT", keywords: ["sweatshirt"] },
+      { label: "TRİKO", keywords: ["triko"] },
+      { label: "TWIN SETS", keywords: ["twin"] },
+      { label: "PLAJ GİYİMİ", keywords: ["plaj"] },
+      { label: "AYAKKABI", keywords: ["ayakkabı", "ayakkabi"] },
+      { label: "AKSESUAR", keywords: ["aksesuar"] }
+    ];
+
+    function normalizeText(text) {
+      return text
+        .toLowerCase()
+        .replaceAll("ı", "i")
+        .replaceAll("ğ", "g")
+        .replaceAll("ü", "u")
+        .replaceAll("ş", "s")
+        .replaceAll("ö", "o")
+        .replaceAll("ç", "c");
+    }
+
+    function categoryMatches(product, categoryData) {
+      if (!categoryData) {
+        return true;
+      }
+
+      if (categoryData.keywords.includes("all")) {
+        return true;
+      }
+
+      const productCategory = normalizeText(product.category);
+      const productName = normalizeText(product.name);
+
+      return categoryData.keywords.some(keyword => {
+        const normalizedKeyword = normalizeText(keyword);
+
+        return (
+          productCategory.includes(normalizedKeyword) ||
+          productName.includes(normalizedKeyword)
+        );
+      });
+    }
+
+    function goHome() {
+      window.location.href = "/";
+    }
+
+    async function loadProductsForAdmin() {
+      const response = await fetch("/products");
+      adminProducts = await response.json();
+
+      renderAdminCategoryLists();
+    }
+
+    function renderAdminCategoryLists() {
+      const womanList = document.getElementById("womanCategoryList");
+      const manList = document.getElementById("manCategoryList");
+
+      womanList.innerHTML = womanCategories.map((category, index) => {
+        const panelId = `woman-panel-${index}`;
+
+        return `
+          <div class="admin-category-block">
+            <button class="admin-category-button" onclick="selectAdminCategory('woman', ${index})">
+              ${category.label}
+            </button>
+            <div id="${panelId}" class="admin-inline-panel"></div>
+          </div>
+        `;
+      }).join("");
+
+      manList.innerHTML = manCategories.map((category, index) => {
+        const panelId = `man-panel-${index}`;
+
+        return `
+          <div class="admin-category-block">
+            <button class="admin-category-button" onclick="selectAdminCategory('man', ${index})">
+              ${category.label}
+            </button>
+            <div id="${panelId}" class="admin-inline-panel"></div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function clearAllAdminPanels() {
+      document.querySelectorAll(".admin-inline-panel").forEach(panel => {
+        panel.innerHTML = "";
+        panel.style.display = "none";
+      });
+    }
+
+    function selectAdminCategory(gender, categoryIndex) {
+      selectedAdminGender = gender;
+      selectedAdminCategoryIndex = categoryIndex;
+
+      clearAllAdminPanels();
+
+      const categories = gender === "woman" ? womanCategories : manCategories;
+      const selectedCategory = categories[categoryIndex];
+
+      const filteredProducts = adminProducts
+        .filter(product => product.gender === gender)
+        .filter(product => categoryMatches(product, selectedCategory));
+
+      const panelId = `${gender}-panel-${categoryIndex}`;
+      const panel = document.getElementById(panelId);
+
+      panel.style.display = "block";
+
+      if (filteredProducts.length === 0) {
+        panel.innerHTML = `
+          <div class="admin-product-box">
+            <h3>${selectedCategory.label}</h3>
+            <p>Bu kategoride ürün bulunamadı.</p>
+          </div>
+        `;
+        return;
+      }
+
+      panel.innerHTML = `
+        <div class="admin-product-box">
+          <h3>${selectedCategory.label}</h3>
+
+          <label>Ürün Seç:</label>
+          <select id="productSelect" onchange="loadSizesForSelectedProduct()">
+            ${filteredProducts.map(product => `
+              <option value="${product.id}">${product.name}</option>
+            `).join("")}
+          </select>
+
+          <label>Beden Seç:</label>
+          <select id="sizeSelect"></select>
+
+          <label>Yeni Stok Miktarı:</label>
+          <input id="stockInput" type="number" placeholder="Örn: 5">
+
+          <button onclick="updateSizeStock()">Beden Stoğunu Güncelle</button>
+
+          <p id="inlineResultMessage" class="inline-result-message"></p>
+
+          <div id="adminProductList" class="admin-product-list">
+            ${filteredProducts.map(product => {
+              const sizesText = Object.entries(product.sizes)
+                .map(([size, stock]) => `${size}: ${stock}`)
+                .join(" | ");
+
+              return `
+                <div class="admin-product-row">
+                  <strong>${product.name}</strong>
+                  <span>${product.category}</span>
+                  <span>${sizesText}</span>
+                  <span>${product.price} TL</span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+
+      loadSizesForSelectedProduct();
+    }
+
+    function loadSizesForSelectedProduct() {
+      const productSelect = document.getElementById("productSelect");
+      const sizeSelect = document.getElementById("sizeSelect");
+
+      if (!productSelect || !sizeSelect) {
+        return;
+      }
+
+      const productId = Number(productSelect.value);
+      const product = adminProducts.find(product => product.id === productId);
+
+      sizeSelect.innerHTML = "";
+
+      if (!product) {
+        return;
+      }
+
+      Object.entries(product.sizes).forEach(([size, stock]) => {
+        const option = document.createElement("option");
+        option.value = size;
+        option.textContent = `${size} - Mevcut stok: ${stock}`;
+        sizeSelect.appendChild(option);
+      });
+    }
+
+    async function updateSizeStock() {
+      const productSelect = document.getElementById("productSelect");
+      const sizeSelect = document.getElementById("sizeSelect");
+      const stockInput = document.getElementById("stockInput");
+      const inlineResultMessage = document.getElementById("inlineResultMessage");
+
+      if (!productSelect || !sizeSelect || !stockInput) {
+        alert("Lütfen önce kategori ve ürün seç.");
+        return;
+      }
+
+      const productId = productSelect.value;
+      const size = sizeSelect.value;
+      const stock = stockInput.value;
+
+      if (!productId) {
+        alert("Lütfen ürün seç.");
+        return;
+      }
+
+      if (!size) {
+        alert("Lütfen beden seç.");
+        return;
+      }
+
+      if (stock === "") {
+        alert("Lütfen yeni stok miktarını yaz.");
+        return;
+      }
+
+      const response = await fetch(`/products/${productId}/update-size-stock`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          size: size,
+          stock: Number(stock)
+        })
+      });
+
+      const data = await response.json();
+
+      const oldGender = selectedAdminGender;
+      const oldCategoryIndex = selectedAdminCategoryIndex;
+
+      await loadProductsForAdmin();
+
+      if (oldGender !== null && oldCategoryIndex !== null) {
+        selectAdminCategory(oldGender, oldCategoryIndex);
+
+        const newInlineMessage = document.getElementById("inlineResultMessage");
+        if (newInlineMessage) {
+          newInlineMessage.innerText = data.message;
+        }
+      }
+    }
+
+    loadProductsForAdmin();
+  </script>
+</body>
+</html>
