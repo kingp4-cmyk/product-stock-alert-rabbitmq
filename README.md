@@ -135,6 +135,7 @@ While building this project, I learned:
 * How to structure a simple event-driven notification system
 * How backend systems can separate product actions from notification logic
 
-## My Role
+## Project Scope
 
-I worked on the backend logic, RabbitMQ connection, product stock update flow, notification system, frontend pages and project structure.
+This project was developed as a full-stack stock alert notification system. It includes the user interface, product listing, cart flow, stock notification logic, RabbitMQ event handling, Docker setup and backend routing.
+
