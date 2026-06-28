@@ -66,6 +66,12 @@ Users can view selected products, update quantities, and see the total order pri
 
 ![Cart Page](screenshots/cart-page.png)
 
+### Admin Panel
+
+The admin panel allows product stock updates by category, product and size. When a stock value is updated, the system can trigger the stock notification flow.
+
+![Admin Panel](screenshots/admin-panel.png)
+
 ### Stock Notification Page
 
 Users can see restocked products and receive notification information when an out-of-stock item becomes available again.
